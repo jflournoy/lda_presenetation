@@ -1,0 +1,788 @@
+Longitudinal Data Analysis (LDA)
+===
+author: John Flournoy
+date: `r Sys.Date()` 
+autosize: true
+font-import: https://fonts.googleapis.com/css2?family=Fira+Sans:wght@400&family=Fira+Mono
+font-family: 'Didact Gothic'
+<style>
+.reveal pre code {
+    font-family: 'Fira Mono';
+    font-size: 14pt;
+}
+body {
+    overflow: scroll;
+}
+</style>
+
+```{r, echo = FALSE}
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+library(showtext)
+
+cpal <- paste0('#', c('4A4BC7', 'EE9BE4', 'F7F6EE', '00AE91', 'FFD23B'))
+jftheme <- theme_minimal() +  
+    theme(text = element_text(family = 'Didact Gothic', size = 20),
+          panel.background = element_rect(fill = cpal[[3]], size = 0, color = cpal[[2]]),
+          panel.grid.major = element_blank(),
+          panel.grid.minor = element_blank(), 
+          strip.background = element_rect(fill = cpal[[5]], size = 0),
+          strip.text = element_text(color = '#222222'),
+          axis.text =  element_text(color = cpal[[4]]), axis.title = element_text(color = cpal[[4]]))
+
+d <- haven::read_sav('~/Downloads/Longitudinal+Data+Analysis_July+9,+2020_07.46.zip')
+
+d_q2 <- select(d, matches('^Q2.*'))
+d_q2_text <- lapply(lapply(d_q2, attr, which = 'label'), gsub, pattern = '.*\\.\\.\\. (.*)$', replacement = '\\1')
+d_q2_text_df <- tibble(key = names(d_q2_text), question_text = unlist(d_q2_text))
+d_q2_l <- gather(d_q2, key, value) %>%
+    left_join(d_q2_text_df) %>%
+    group_by(question_text) %>%
+    mutate(mscore = mean(!is.na(value), na.rm = TRUE))
+
+d_q2_l_qt <- distinct(d_q2_l, question_text, mscore)
+d_q2_l$question_text_fac <- factor(d_q2_l$question_text, levels = d_q2_l_qt$question_text[order(d_q2_l_qt$mscore)])
+
+d_q1 <- select(d, matches('^Q1.*'))
+d_q1_text <- lapply(lapply(d_q1, attr, which = 'label'), gsub, pattern = '.*\\. - (.*)$', replacement = '\\1')
+d_q1_text_df <- tibble(key = names(d_q1_text), question_text = unlist(d_q1_text))
+d_q1_l <- gather(d_q1, key, value) %>%
+    left_join(d_q1_text_df) %>%
+    group_by(question_text) %>%
+    mutate(mscore = mean(value, na.rm = TRUE))
+
+d_q1_l$question_text_wrap <- unlist(lapply(lapply(d_q1_l$question_text, stringi::stri_wrap, width = 16), paste, collapse = '\n'))
+d_q1_l_qt <- distinct(d_q1_l, question_text_wrap, mscore)
+d_q1_l$question_text_wrap <- factor(d_q1_l$question_text_wrap, levels = d_q1_l_qt$question_text_wrap[order(d_q1_l_qt$mscore)])
+
+d_q3 <- select(d, matches('^Q3.*'))
+d_q3_text <- lapply(lapply(d_q3, attr, which = 'label'), gsub, pattern = '.*: - (.*)$', replacement = '\\1')
+d_q3_text_df <- tibble(key = names(d_q3_text), question_text = unlist(d_q3_text))
+d_q3_l <- gather(d_q3, key, value) %>%
+    left_join(d_q3_text_df) %>%
+    group_by(question_text) %>%
+    mutate(mscore = mean(value, na.rm = TRUE))
+
+d_q3_l_qt <- distinct(d_q3_l, question_text, mscore)
+d_q3_l$question_text_fac <- factor(d_q3_l$question_text, levels = d_q3_l_qt$question_text[order(d_q3_l_qt$mscore)])
+
+d_q4 <- select(d, matches('^Q4.*'))
+d_q4_text <- lapply(lapply(d_q4, attr, which = 'label'), gsub, pattern = '.*options\\. (.*)$', replacement = '\\1')
+d_q4_text_df <- tibble(key = names(d_q4_text), question_text = unlist(d_q4_text))
+d_q4_l <- gather(d_q4, key, value) %>%
+    left_join(d_q4_text_df) %>%
+    group_by(question_text) %>%
+    mutate(mscore = mean(!is.na(value), na.rm = TRUE))
+
+d_q4_l_qt <- distinct(d_q4_l, question_text, mscore)
+d_q4_l$question_text_fac <- factor(d_q4_l$question_text, levels = d_q4_l_qt$question_text[order(d_q4_l_qt$mscore)])
+
+d_q5 <- select(d, matches('^q5.*'))
+d_q5_text <- lapply(lapply(d_q5, attr, which = 'label'), gsub, pattern = '.*options\\. (.*)$', replacement = '\\1')
+d_q5_text_df <- tibble(key = names(d_q5_text), question_text = unlist(d_q5_text))
+d_q5_l <- gather(d_q5, key, value) %>%
+    left_join(d_q5_text_df) %>%
+    group_by(question_text) %>%
+    mutate(mscore = mean(!is.na(value), na.rm = TRUE))
+
+d_q5_l_qt <- distinct(d_q5_l, question_text, mscore)
+d_q5_l$question_text_fac <- factor(d_q5_l$question_text, levels = d_q5_l_qt$question_text[order(d_q5_l_qt$mscore)])
+
+```
+
+Experience with LDA
+===
+
+```{r, echo = FALSE, fig.width = 10, fig.height = 8}
+showtext_auto()
+ggplot(d_q2_l, aes(x = question_text_fac, y = value)) + 
+    geom_col(fill = cpal[[2]]) + 
+    geom_hline(yintercept = 0, color = cpal[[1]]) + 
+    jftheme + 
+    theme(axis.text.x = element_text(angle = 65, hjust = 1, color = '#222222')) + 
+    labs(x = '', y = 'Count')
+```
+
+Experience with Specific Techniques
+===
+```{r, echo = FALSE, fig.width = 12, fig.height = 8}
+ggplot(d_q1_l, aes(x = value)) + 
+    geom_bar(fill = cpal[[2]], width = 1) + 
+    geom_hline(yintercept = 0, color = cpal[[1]]) + 
+    jftheme + 
+    theme(axis.title.x = element_text(color = '#222222'), strip.text = element_text(size = 15)) + 
+    facet_wrap(~ question_text_wrap, ncol = 7) + 
+    labs(y = 'Count', x = 'Experience, from none (1) to a lot (5)')
+```
+
+What should I prioritize?
+===
+```{r, echo = FALSE, fig.width = 14, fig.height = 8}
+ggplot(d_q3_l, aes(x = value)) + 
+    geom_bar(fill = cpal[[2]], width = 1) + 
+    geom_hline(yintercept = 0, color = cpal[[1]]) + 
+    theme_minimal() + 
+    scale_x_continuous(breaks = 1:6) +
+    jftheme +
+    theme(axis.title.x = element_text(color = '#222222')) + 
+    facet_wrap(~ question_text_fac, ncol = 3) + 
+    labs(x = 'Ranking', y = 'Count')
+```
+
+What are you curious to see in code?
+===
+```{r, echo = FALSE, fig.width = 12, fig.height = 8}
+ggplot(d_q4_l, aes(x = question_text_fac, y = value)) + 
+    geom_col(fill = cpal[[2]]) + 
+    geom_hline(yintercept = 0, color = cpal[[1]]) + 
+    jftheme + 
+    theme(axis.text.x = element_text(angle = 65, hjust = 1, color = '#222222')) + 
+    labs(x = '', y = 'Count')
+```
+
+What models are you curious about?
+===
+```{r, echo = FALSE,  fig.width = 10, fig.height = 8}
+ggplot(d_q5_l, aes(x = question_text_fac, y = value)) + 
+    geom_col(fill = cpal[[2]]) + 
+    geom_hline(yintercept = 0, color = cpal[[1]]) + 
+    jftheme + 
+    theme(axis.text.x = element_text(angle = 65, hjust = 1, color = '#222222')) + 
+    labs(x = '', y = 'Count')
+```
+
+What is longitudinal data?
+===
+Any data that is collected on the same thing over time.
+
+In psych, we focus on individuals, so usually it's a person measured multiple times.
+
+Many research designs can be considered longitudinal:
+
+- Experiments (within-subjects designs, esp. pre-post treatment)
+- A single fMRI scan (multiple whole-brain volumes collected over time)
+- Ecological momentary assessment (multiple questionnaires per day)
+- **Multiple assessments over intervals of weeks, months, and years**
+
+
+Why do we care about longitudinal data?
+===
+Some of us are developmental researchers.
+
+- E.g., we ask basic questions about how people **change over time** normally, and _maybe_ how that accounts for other things we care about.
+
+Some of us are clinical researchers that focus on childhood.
+
+- E.g., we ask questions about how **early experiences change risk for later clinical outcomes**.
+
+
+Overview of LDA: A roadmap
+===
+0. <span style='color:gray'>What is it and why do we care?</span>
+1. How does longitudinal data improve inference?
+3. What kinds of models can you fit (and what data do you need)?
+    - Latent growth curve
+    - Bivariate latent growth curve
+    - (Random-intercept) cross-lag panel model
+
+
+Longitudinal data improves inference
+===
+incremental: true
+1. _Prospective:_ You observe the construct as it's changing rather than asking for retrospective reports.
+2. _Within-person changes:_ Each person is their own "control." 
+    - You can be sure that when you observe a change, it is unconfounded by everything that stays the same about a person.
+3. _Disaggregate different effects of time:_ Separate the effects of **age**, **cohort/generation**, and **history/period**.
+    - In a cross-sectional study, someone's age is perfectly confounded with their generation (every 15 year old right was born around 2005).
+
+Another way to put it: Cross-sectional data require that...
+===
+incremental: true
+1. Phenomena are _ergodic_.
+    - The phenomenon shows the same pattern across the group as it does within the individual.
+    - E.g., does every individual's developmental trajectory match what you see in a cross-section of a population?
+    - **Longitudinal data measures within-person changes.**
+2. Individuals must be thought of as _exchangeable_.
+    - E.g., is the 17-year-old in your sample essentially the "same person" as the 10-year-old, just 7 years older?
+    - **Longitudinal data allow you to know that they are actually the same person.**
+    
+<small>([**Fisher et al., 2018**](http://www.pnas.org/lookup/doi/10.1073/pnas.1711978115); Molenaar & Campbell, 2009)</small>
+
+Simpson's Paradox
+---
+![](andl_lab_lda_presentation-figure/Simpsons_paradox_-_animation.gif)
+
+
+Some nice longitudinal designs
+===
+incremental: true
+![](andl_lab_lda_presentation-figure/332401_1_En_21_Fig3_HTML.jpg)
+
+If you care about age effects, these will allow you to keep them free of either cohort, or history confounds.
+- But because Age = Period - Cohort you always have to _assume_ that at least one of these is absent (Bell & Jones, 2015).
+
+Beyond Age
+===
+incremental: true
+Do we care about age, _per se_?
+
+Developmentalists care about things for which age is a proxy:
+- Biological development (e.g., adren/gonadarche, myelination)
+- Social development (e.g., changing social roles, opportunities, expectations, contexts)
+
+Clinically, we may simply be interested in changes that happen during particular developmental windows
+- E.g., we care about specific experiences during times when they may have the strongest effect
+
+We will develop our best longitudinal research if we focus on the mechanisms of interest, rather than age.
+
+Overview of LDA: A roadmap
+===
+0. <span style='color:gray'>What is it and why do we care?</span>
+1. <span style='color:gray'>How does longitudinal data improve inference?</span>
+3. What kinds of models can you fit (and what data do you need)?
+    - Latent growth curve
+    - Bivariate latent growth curve
+    - (Random-intercept) cross-lag panel model
+
+What kinds of models can you fit?
+===
+incremental: true
+So many kinds of change, and as many models
+- Structural change (e.g., structure of psychopathology, resting-state network partitions)
+- Rank order: is a person with a higher score than most at time 1 likely to be higher than most at time 2?
+- Normative: does the population average change over time (e.g., normative executive functioning increases)?
+- Individual: how variable are individual differences in how people deviate from the mean normative trajectory?
+- Probably a lot more...
+
+What kinds of models can you fit?
+===
+So many kinds of change, and as many models
+- Structural change (e.g., structure of psychopathology, resting-state network partitions)
+- **Rank order**: is a person with a higher score than most at time 1 likely to be higher than most at time 2?
+- **Normative**: does the population average change over time (e.g., normative executive functioning increases)?
+- **Individual**: how variable are individual differences in how people deviate from the mean normative trajectory?
+- Probably a lot more...
+
+Three common, useful SEMs for longitudinal data
+===
+1. Latent growth curve models
+2. (Random-intercept) cross-lag panel models
+3. <span style='color:gray'>Latent difference score models</span>
+
+Quick aside for notation:
+===
+![](andl_lab_lda_presentation-figure/SEM_notation.png)
+
+Latent growth curve models
+===
+
+Model _normative change_ and _individual change_.
+![](andl_lab_lda_presentation-figure/LGC_model.png)
+
+What might data fit by this model look like?
+===
+```{r, echo = FALSE}
+library(lavaan)
+
+growth_model <- "# intercept, slope, quadratic with fixed coefficients
+					i =~ 1*y0 + 1*y1 + 1*y2 + 1*y3
+					s =~ 0*y0 + 1*y1 + 2*y2 + 3*y3
+					q =~ 0*y0 + 1*y1 + 4*y2 + 9*y3
+					i ~ 0*1
+					s ~ 5*1
+					q ~ -1.25*1
+					i ~~ 4*i
+					s ~~ .1*s
+					q ~~ .1*q
+                    i ~~ -.1*s + .1*q
+                    s ~~ .1*q"
+
+growth_model_to_fit <- "
+					# intercept, slope, quadratic with fixed coefficients
+					i =~ 1*y0 + 1*y1 + 1*y2 + 1*y3
+					s =~ 0*y0 + 1*y1 + 2*y2 + 3*y3
+					q =~ 0*y0 + 1*y1 + 4*y2 + 9*y3"
+set.seed(3)
+growth_data <- lavaan::simulateData(model = growth_model, model.type = 'growth', sample.nobs = 200)
+
+growth_fit <- lavaan::growth(model = growth_model_to_fit, data = growth_data)
+
+growth_data_l <- tidyr::gather(mutate(growth_data, ID = 1:n()), key, value, -ID) %>%
+    extract(key, into = c('var', 'wave'), regex = '(y)(\\d+)') %>%
+    mutate(wave = as.numeric(wave)) %>%
+    spread(var, value)
+
+ajitter <- position_jitter(width = .05)
+acoord <-  coord_cartesian(ylim = c(-7.5, 12.5))
+jftheme <- theme_minimal() +  
+    theme(text = element_text(family = 'Didact Gothic', size = 20),
+          panel.background = element_rect(fill = cpal[[3]], size = 0, color = cpal[[2]]),
+          panel.grid.major = element_line(color = cpal[[4]], linetype = 2, size = .2),
+          panel.grid.minor = element_blank(), 
+          strip.background = element_rect(fill = cpal[[5]], size = 0),
+          strip.text = element_text(color = '#222222'),
+          axis.text =  element_text(color = cpal[[4]]), axis.title = element_text(color = cpal[[4]]))
+```
+
+```{r, echo = FALSE, fig.width = 12, fig.height = 8}
+library(patchwork)
+ggplot(growth_data_l, aes(x = wave, y = y)) +
+    geom_point(position = ajitter, color = cpal[[1]]) + 
+    geom_smooth(method = 'glm', formula = y ~ poly(x, 2), color = cpal[[2]], fill = cpal[[5]]) + 
+    acoord +
+    jftheme + 
+ggplot(growth_data_l, aes(x = wave, y = y)) +
+    geom_point(position = ajitter, color = cpal[[1]]) + 
+    geom_line(aes(group = ID), stat = 'smooth', method = 'glm', formula = y ~ poly(x, 2), color = cpal[[2]], alpha = .3) + 
+    acoord +
+    jftheme  
+```
+
+How do we do this in R?
+===
+
+```{r}
+library(lavaan)
+quad_lgcm <- "
+# intercept, slope, quadratic with fixed coefficients
+i =~ 1*y0 + 1*y1 + 1*y2 + 1*y3
+s =~ 0*y0 + 1*y1 + 2*y2 + 3*y3
+q =~ 0*y0 + 1*y1 + 4*y2 + 9*y3
+#Estimate the means of each of these terms
+i ~ 1
+s ~ 1
+q ~ 1
+#Estimate the covariance between terms
+i ~~ s + q
+s ~~ q"
+
+quad_lgcm_fit <- lavaan::growth(model = quad_lgcm, data = growth_data)
+```
+
+Lavaan-to-model correspondence
+===
+![](andl_lab_lda_presentation-figure/LGC_model_lavaan.png)
+
+Model summary...
+===
+```{r}
+summary(quad_lgcm_fit, stan = TRUE)
+```
+
+What kind of data do you need?
+===
+incremental: true
+For these kinds of growth models you need one more wave than the number of growth parameters.
+
+1. Linear growth curves require 3 waves.
+2. Quadratic growth curves require 4 waves.
+
+Why?
+
+Disaggregating true change from sources of error
+===
+incremental: true
+Any two points can be perfectly joined by a line, and any three points can be joined by a quadratic curve.
+
+```{r, echo = FALSE, fig.width = 10, fig.height = 6}
+library(patchwork)
+d <- data.frame(x = c(1, 2, 3, 1, 2, 3), var = rep(c('x', 'y'), each = 3), value = c(1, 3, NA, 1, 3, 1.4))
+ 
+ggplot(d[d$var == 'x',], aes(x = x, y = value)) +
+    geom_line(color = cpal[[1]], stat = 'smooth', method = 'glm', formula = y ~ poly(x,1)) + 
+    geom_point() + 
+    facet_grid(~var) +
+    jftheme +
+ggplot(d[d$var == 'y',], aes(x = x, y = value)) +
+    geom_line(color = cpal[[1]], stat = 'smooth', method = 'glm', formula = y ~ poly(x,2)) + 
+    geom_point() + 
+    facet_grid(~var) +
+    jftheme 
+```
+
+Disaggregating true change from sources of error
+===
+incremental: true
+Why is it bad if that fits perfectly?
+
+Our measures at each wave are the result of _true change_ as well as other influences we're not interested in.
+
+1. Measurement error (e.g., noise in the BOLD signal, mis-answered question)
+2. True random state variation (e.g., someone was just having a bad day and was distracted during the EF task)
+
+```{r, echo = FALSE, fig.width = 6, fig.height = 3}
+d <- data.frame(x = c(1,1.01,1.02), y = c(5,7,4), yend = c(NA,5,7), error = c('True score', 'State variance', 'Measurement error'))
+
+ggplot(d, aes(x = x, y = y, color = error)) +
+    geom_segment(aes(yend = yend, xend = x), size = 1) + 
+    geom_point(size = 5) + 
+    coord_cartesian(ylim = c(1,7), xlim = c(.5, 1.5)) + 
+    jftheme
+```
+
+Fitting a model without enough data
+===
+
+```{r}
+growth_model_to_est_3wave <- "
+					# intercept and slope with fixed coefficients
+					i =~ 1*y0 + 1*y1 + 1*y2
+					s =~ 0*y0 + 1*y1 + 2*y2
+					q =~ 0*y0 + 1*y1 + 4*y2
+					# If I don't set this, the model will have -3 df
+					y0 ~~ 0*y0
+					y1 ~~ 0*y1
+					y2 ~~ 0*y2
+					"
+growth_fit_3wave <- lavaan::growth(model = growth_model_to_est_3wave, data = growth_data)
+summary(growth_fit_3wave)
+```
+
+Fitting a model without enough data (alternative)
+===
+
+```{r}
+growth_model_to_est_3wave <- "
+					# intercept and slope with fixed coefficients
+					i =~ 1*y0 + 1*y1 + 1*y2
+					s =~ 0*y0 + 1*y1 + 2*y2
+					q =~ 0*y0 + 1*y1 + 4*y2
+					# If I don't set this, the model will have -3 df
+					q ~~ 0*q + 0*s + 0*i
+					"
+growth_fit_3wave <- lavaan::growth(model = growth_model_to_est_3wave, data = growth_data)
+summary(growth_fit_3wave)
+```
+
+See the difference in predictions
+===
+4 wave model:
+
+```{r echo = FALSE,  fig.width = 12, fig.height = 8}
+pred_data <- as_tibble(as.data.frame(lavPredict(growth_fit, type = 'ov', method = 'Bartlett')))
+pred_data_l <- gather(mutate(pred_data, ID = 1:n()), key, value, -ID) %>%
+  extract(key, into = c('var', 'wave'), regex = '(\\w+)(\\d+)') %>%
+  mutate(wave = as.numeric(wave), var = 'y_pred') %>%
+  spread(var, value) %>%
+  left_join(growth_data_l) %>%
+  mutate(wave_jitter = wave + runif(n(), -.25, .25))
+
+pred_data_3 <- as_tibble(as.data.frame(lavPredict(growth_fit_3wave, type = 'ov', method = 'Bartlett')))
+pred_data_3_l <- gather(mutate(pred_data_3, ID = 1:n()), key, value, -ID) %>%
+  extract(key, into = c('var', 'wave'), regex = '(\\w+)(\\d+)') %>%
+  mutate(wave = as.numeric(wave), var = 'y_pred') %>%
+  spread(var, value) %>%
+  left_join(growth_data_l) %>%
+  mutate(wave_jitter = wave + runif(n(), -.25, .25))
+
+ggplot(pred_data_l, aes(x = wave_jitter, y = y)) +
+  geom_point(alpha = .5, color = cpal[[1]]) + 
+  geom_line(aes(group = ID, y = y_pred), 
+            alpha = .2, color = cpal[[2]]) +
+    labs(x='wave')+
+    jftheme +
+ggplot(pred_data_l, aes(x = wave_jitter, y = y)) +
+  geom_point(alpha = 1, color = cpal[[1]]) + 
+  geom_line(aes(group = ID, y = y_pred), size = 1,
+            alpha = .5, color = cpal[[2]]) + 
+  geom_segment(aes(xend = wave_jitter, yend = y_pred), alpha = 1, color = cpal[[1]]) + 
+  coord_cartesian(ylim = c(6, 12), xlim = c(.7, 1.3)) + 
+    labs(x='wave')+
+    jftheme
+```
+
+Perfect fit
+===
+3 Waves:
+
+```{r echo = FALSE, fig.width = 12, fig.height = 8}
+ggplot(pred_data_3_l, aes(x = wave_jitter, y = y)) +
+  geom_point(alpha = .5, color = cpal[[1]]) + 
+  geom_line(aes(group = ID, y = y_pred), 
+            alpha = .2, color = cpal[[2]]) +
+    labs(x='wave')+
+    jftheme +
+ggplot(pred_data_3_l, aes(x = wave_jitter, y = y)) +
+  geom_point(alpha = 1, color = cpal[[1]]) + 
+  geom_line(aes(group = ID, y = y_pred), size = 1,
+            alpha = .5, color = cpal[[2]]) + 
+  geom_segment(aes(xend = wave_jitter, yend = y_pred), alpha = 1, color = cpal[[1]]) + 
+  coord_cartesian(ylim = c(6, 12), xlim = c(.7, 1.3)) + 
+    labs(x='wave')+
+    jftheme
+```
+
+Other data solutions
+===
+Accelerated longitudinal designs can help with this.
+- collect fewer waves per person
+- but lose ability to estimate complex individual trajectories (ergodicity problem)
+
+
+```{r, echo = FALSE, fig.width = 12, fig.height = 6}
+npoints <- 10
+start <- 0
+stop <- 9
+lin_weight <- seq(start, stop, length.out = npoints)
+ald_growth_model <- paste0("
+# intercept and slope with fixed coefficients",
+paste0('\ni =~ ', paste(paste0(lin_weight*0+1, '*y', 0:stop), collapse = ' + ')),
+paste0('\ns =~ ', paste(paste0(lin_weight, '*y', 0:stop), collapse = ' + ')),
+paste0('\nq =~ ', paste(paste0(lin_weight^2, '*y', 0:stop), collapse = ' + ')),
+"\ni ~ 0*1
+s ~ 10*1
+q ~ -1*1
+i ~~ 150*i
+s ~~ .5*s
+q ~~ .03*q
+i ~~ -.02*s + .02*q
+s ~~ .02*q
+", paste(paste0('y', 0:npoints, ' ~ 10*y', 0:npoints), collapse = '\n'))
+
+ald_growth_model_to_est <- paste0("
+# intercept and slope with fixed coefficients",
+paste0('\ni =~ ', paste(paste0(lin_weight*0+1, '*y', 0:stop), collapse = ' + ')),
+paste0('\ns =~ ', paste(paste0(lin_weight, '*y', 0:stop), collapse = ' + ')),
+paste0('\nq =~ ', paste(paste0(lin_weight^2, '*y', 0:stop), collapse = ' + ')))
+set.seed(5)
+ald_growth_data <- lavaan::simulateData(model = ald_growth_model, model.type = 'growth', sample.nobs = 150)
+
+ald_growth_fit <- lavaan::growth(model = ald_growth_model_to_est, data = ald_growth_data)
+
+ald_growth_data <- mutate(ald_growth_data,
+                          recruit_wave = sample(0:(npoints - 3), replace = TRUE, size = n()))
+
+ald_growth_data_l <- gather(mutate(ald_growth_data, ID = 1:n()), key, value, -ID, -recruit_wave) %>%
+  extract(key, into = c('var', 'wave'), regex = '(y)(\\d+)') %>%
+  mutate(wave = as.numeric(wave),
+         Age = wave + 10) %>%
+  spread(var, value) %>%
+  filter(wave >= recruit_wave & wave <= recruit_wave + 2)
+
+ald_growth_data_l_start <- summarize(group_by(ald_growth_data_l, ID),
+                                     start = min(wave))
+ald_growth_data_l$ID <- factor(ald_growth_data_l$ID,
+                               levels = ald_growth_data_l_start$ID[order(ald_growth_data_l_start$start)])
+
+ggplot(ald_growth_data_l[ald_growth_data_l$ID %in% sample(ald_growth_data_l$ID, 50),], aes(x = Age, y = ID)) +
+  geom_point(color = cpal[[1]]) + 
+  geom_line(aes(group = ID), color = cpal[[1]]) + 
+    jftheme
+```
+
+Growth curve in accelerated design
+===
+```{r, echo = FALSE, fig.width = 12, fig.height = 8}
+ggplot(ald_growth_data_l, aes(x = Age, y = y)) +
+  geom_point(position = ajitter, alpha = .5, color = cpal[[2]]) + 
+  geom_line(aes(group = ID),
+            alpha = .8, color = cpal[[1]]) +
+    jftheme + 
+ggplot(ald_growth_data_l, aes(x = Age, y = y)) +
+  geom_point(position = ajitter, alpha = .8, color = cpal[[2]]) + 
+  geom_line(aes(group = ID), stat = 'smooth', method = 'glm', formula = y ~ poly(x,1),
+            alpha = .8, color = cpal[[1]]) +
+    jftheme
+```
+
+Estimating the model
+===
+I'll use some `paste` magic to build the full model
+
+```{r}
+ald_lgcm <- paste0("
+# intercept slope and quadratic with fixed coefficients",
+paste0('\ni =~ ', paste(paste0(lin_weight*0+1, '*y', 0:stop), collapse = ' + ')),
+paste0('\ns =~ ', paste(paste0(lin_weight, '*y', 0:stop), collapse = ' + ')),
+paste0('\nq =~ ', paste(paste0(lin_weight^2, '*y', 0:stop), collapse = ' + ')))
+cat(ald_lgcm)
+ald_lgcm_fit <- lavaan::growth(model = ald_lgcm, data = ald_growth_data)
+summary(ald_lgcm_fit)
+```
+
+Overview of LDA: A roadmap
+===
+0. <span style='color:gray'>What is it and why do we care?</span>
+1. <span style='color:gray'>How does longitudinal data improve inference?</span>
+3. <span style='color:gray'>What kinds of models can you fit (and what data do you need)?</span>
+    - <span style='color:gray'>Latent growth curve</span>
+    - Bivariate latent growth curve
+    - (Random-intercept) cross-lag panel model
+    
+Bivariate LGC model
+===
+incremental: true
+The latent intercept, slope, and quadratic term are variables!
+
+You can use them in regression and covariance equations!
+
+Use a person's intercept or slope to predict some other outcome!
+
+See what predicts steeper increases!
+
+Examine correlated slopes!
+
+Bivariate LGC in lavaan
+===
+```{r}
+quad_bivar_lgcm <- "
+# Y intercept, slope, quadratic
+Y_i =~ 1*y0 + 1*y1 + 1*y2 + 1*y3
+Y_s =~ 0*y0 + 1*y1 + 2*y2 + 3*y3
+Y_q =~ 0*y0 + 1*y1 + 4*y2 + 9*y3
+
+# X intercept, slope, quadratic
+X_i =~ 1*x0 + 1*x1 + 1*x2 + 1*x3
+X_s =~ 0*x0 + 1*x1 + 2*x2 + 3*x3
+X_q =~ 0*x0 + 1*x1 + 4*x2 + 9*x3
+
+#Correlations between parameters of X and Y
+Y_i ~~ Xi + X_s + Xq
+Y_s ~~ Xi + X_s + Xq
+Y_q ~~ Xi + X_s + Xq
+
+#Test effect of individual-difference measure Z (e.g. SES)
+Y_i ~ Z #is the Y intercept predicted by Z?
+Y_s ~ Z
+Y_q ~ Z
+X_i ~ Z
+X_s ~ Z
+X_q ~ Z"
+```
+
+Other kinds of growth models
+===
+Similar to the above...
+- Non-parametric "free curve" (e.g., [Wood & Jackson, 2013](https://dx.doi.org/10.1017/S095457941300014X))
+- Latent difference score ([Kievit et al., 2018](http://www.sciencedirect.com/science/article/pii/S187892931730021X), [McArdle, 2009](http://dx.doi.org/10.1146/annurev.psych.60.110707.163612)) 
+- Dynamic SEM ([Grimm & Ram, 2018](https://doi.org/10.1146/annurev-clinpsy-050817-084840), [Hamaker et al., 2018](https://doi.org/10.1080/00273171.2018.1446819); [McNeish, 2018](https://psyarxiv.com/j56bm/))
+
+Overview of LDA: A roadmap
+===
+0. <span style='color:gray'>What is it and why do we care?</span>
+1. <span style='color:gray'>How does longitudinal data improve inference?</span>
+3. <span style='color:gray'>What kinds of models can you fit (and what data do you need)?</span>
+    - <span style='color:gray'>Latent growth curve</span>
+    - <span style='color:gray'>Bivariate latent growth curve</span>
+    - (Random-intercept) cross-lag panel model
+    
+Cross-lag panel model
+===
+What if you don't really care about the shape of change?
+
+You primarily care about how within-person changes in one variable are related to within-person changes in another variable...
+
+![](andl_lab_lda_presentation-figure/clpm.jpg)
+
+Cross-lag panel model
+===
+![](andl_lab_lda_presentation-figure/clpm.jpg)
+
+Looks awesome. Seems to answer the question, "how does the previous score on Y predict the next score on X, over and above the previous level of X."
+
+"A Critique of the Cross-Lagged Panel Model"
+===
+
+The traditional CLPM does not distinguish between-person variance from within-person variance.
+
+We can add a latent (aka "random") intercept (or even intercept and slope) to pull out the stable, between-person variance.
+
+<small>([Hamaker et al., 2015](https://doi.org/10.1037/a0038889))</small>
+
+Random-intercept CLPM
+===
+
+<img src='andl_lab_lda_presentation-figure/hamaker-diagram.png' style='height:700px' />
+
+Random-intercept CLPM
+===
+
+<img src='andl_lab_lda_presentation-figure/hamaker-diagram_zoom.png' style='height:350px' />
+
+The observed score is caused by the group mean (triangle), the individually-varying (random) intercept $\kappa$, and the latent residual, $p$.
+
+The trick is to use the latent residuals for the CLPM, so now $\alpha$ and $\beta$ encode associations of within-person variance.
+
+RI-CLPM in lavaan
+===
+
+```{r}
+riclpmModel <- 
+'
+#Note, the data contain x1-3 and y1-3
+#Latent mean Structure with intercepts
+
+kappa =~ 1*x1 + 1*x2 + 1*x3
+omega =~ 1*y1 + 1*y2 + 1*y3
+
+x1 ~ mu1*1 #ov intercepts
+x2 ~ mu2*1
+x3 ~ mu3*1
+y1 ~ pi1*1
+y2 ~ pi2*1
+y3 ~ pi3*1
+
+kappa ~~ kappa #variance
+omega ~~ omega #variance
+kappa ~~ omega #covariance
+
+#laten vars for AR and cross-lagged effects
+p1 =~ 1*x1 #each factor loading set to 1
+p2 =~ 1*x2
+p3 =~ 1*x3
+q1 =~ 1*y1
+q2 =~ 1*y2
+q3 =~ 1*y3
+
+#Later, we may constrain autoregression and cross-lagged
+#effects to be the same across both lags.
+p3 ~ alpha3*p2 + beta3*q2
+p2 ~ alpha2*p1 + beta2*q1
+
+q3 ~ delta3*q2 + gamma3*p2
+q2 ~ delta2*q1 + gamma2*p1
+
+p1 ~~ p1 #variance
+p2 ~~ u2*p2
+p3 ~~ u3*p3
+q1 ~~ q1 #variance
+q2 ~~ v2*q2
+q3 ~~ v3*q3
+
+p1 ~~ q1 #p1 and q1 covariance
+p2 ~~ q2 #p2 and q2 covariance
+p3 ~~ q3 #p2 and q2 covariance'
+```
+
+Fitting it in lavaan
+===
+
+```{r, eval = FALSE}
+fit <- lavaan(riclpmModel, data = antiread,
+              missing = 'ML', #for the missing data!
+              int.ov.free = F,
+              int.lv.free = F,
+              auto.fix.first = F,
+              auto.fix.single = F,
+              auto.cov.lv.x = F,
+              auto.cov.y = F,
+              auto.var = F)
+```
+
+There's a package
+===
+
+Very simple package, very much an alpha version: https://jflournoy.github.io/riclpmr/
+
+It will generate the correct model syntax if you give it sets of variable names, and estimate it using the correct options in lavaan.
+
+```{r, eval = FALSE}
+var_groups <- list(
+    x=c("x_t1",  "x_t2",  "x_t3"),
+    y=c("y_t1",  "y_t2",  "y_t3"),
+    z=c("z_t1",  "z_t2",  "z_t3"))
+model_text <- riclpmr::riclpm_text(var_groups)
+fit <- riclpmr::lavriclpm(model_text, data = d)
+```
+
